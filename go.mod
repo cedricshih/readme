@@ -1,4 +1,4 @@
-module readme
+module github.com/cedricshih/readme
 
 go 1.16
 

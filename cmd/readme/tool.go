@@ -7,10 +7,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"readme/api/readme"
 	"strconv"
 	"strings"
 
+	"github.com/cedricshih/readme/api/readme"
 	"github.com/sergi/go-diff/diffmatchpatch"
 	"gopkg.in/yaml.v2"
 )

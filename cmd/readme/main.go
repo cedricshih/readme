@@ -6,7 +6,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"readme/api/readme"
+
+	"github.com/cedricshih/readme/api/readme"
 )
 
 const (
