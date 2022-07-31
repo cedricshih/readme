@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 
 	"github.com/TylerBrock/colorjson"
@@ -15,16 +16,18 @@ import (
 
 type Client struct {
 	*http.Client
-	Endpoint string
-	APIKey   string
-	Output   io.Writer
+	Endpoint      string
+	APIKey        string
+	Output        io.Writer
+	categoryCache map[string]*Category
 }
 
 func NewClient(APIKey string) *Client {
 	return &Client{
-		Client:   http.DefaultClient,
-		Endpoint: "https://dash.readme.com/api/v1/",
-		APIKey:   APIKey,
+		Client:        http.DefaultClient,
+		Endpoint:      "https://dash.readme.com/api/v1/",
+		APIKey:        APIKey,
+		categoryCache: map[string]*Category{},
 	}
 }
 
@@ -39,7 +42,33 @@ func (c *Client) Project() (*Project, error) {
 
 func (c *Client) Categories() ([]*Category, error) {
 	res := make([]*Category, 0)
-	err := c.request("GET", "categories?perPage=100", nil, &res)
+	if len(c.categoryCache) > 0 {
+		for _, v := range c.categoryCache {
+			res = append(res, v)
+		}
+		return res, nil
+	}
+	page := 1
+	for {
+		cats, err := c.categories(page)
+		if err != nil {
+			return nil, err
+		}
+		for _, cat := range cats {
+			c.categoryCache[cat.ID] = cat
+		}
+		res = append(res, cats...)
+		if len(res) < 100 {
+			break
+		}
+		page++
+	}
+	return res, nil
+}
+
+func (c *Client) categories(page int) ([]*Category, error) {
+	res := make([]*Category, 0)
+	err := c.request("GET", fmt.Sprintf("categories?perPage=100&page=%d", page), nil, &res)
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +82,20 @@ func (c *Client) Category(category string) (*Category, error) {
 		return nil, err
 	}
 	return res, nil
+}
+
+func (c *Client) CategoryByID(id string) (*Category, error) {
+	if len(c.categoryCache) <= 0 {
+		_, err := c.Categories()
+		if err != nil {
+			return nil, err
+		}
+	}
+	cat := c.categoryCache[id]
+	if cat == nil {
+		return nil, fmt.Errorf("no such category: %s", id)
+	}
+	return cat, nil
 }
 
 func (c *Client) Docs(category string) ([]*Doc, error) {
@@ -112,6 +155,7 @@ func (c *Client) request(method, uri string, reqJson interface{}, resJson interf
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Basic "+base64.RawStdEncoding.EncodeToString([]byte(c.APIKey+":")))
+	log.Printf("Making request: %s %s", req.Method, req.URL.String())
 	res, err := c.Do(req)
 	if err != nil {
 		return err
